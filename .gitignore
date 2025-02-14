@@ -1,0 +1,8 @@
+# Env variable
+.env
+
+# Go module files
+go.sum
+
+# IDE specific files
+.vscode/
