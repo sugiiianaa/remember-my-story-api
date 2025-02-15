@@ -14,6 +14,8 @@ import (
 	repositories "github.com/sugiiianaa/remember-my-story/internal/Repositories"
 	"github.com/sugiiianaa/remember-my-story/internal/database"
 	"github.com/sugiiianaa/remember-my-story/internal/handlers"
+	"github.com/sugiiianaa/remember-my-story/internal/logger"
+	"github.com/sugiiianaa/remember-my-story/internal/middleware"
 	"github.com/sugiiianaa/remember-my-story/internal/services"
 )
 
@@ -40,8 +42,18 @@ func main() {
 	journalService := services.NewJournalService(journalRepo)
 	journalHandler := handlers.NewJournalHandler(journalService)
 
+	log := logger.NewLogger()
+
 	// Create Gin router
-	router := gin.Default()
+	router := gin.New()
+
+	// Add middlewares
+	router.Use(
+		gin.Recovery(),                         // Basic recovery
+		middleware.RecoveryMiddleware(log),     // Custom recovery
+		middleware.LoggingMiddleware(log),      // Structured logging
+		middleware.ErrorHandlerMiddleware(log), // Error handling
+	)
 
 	// Routes
 	api := router.Group("/api/v1")
