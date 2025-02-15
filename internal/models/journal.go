@@ -12,5 +12,6 @@ type JournalEntry struct {
 	Mood               int
 	ThisDayDescription string
 	DailyReflection    string
+	UserID             uint        `gorm:"foreignKey:UserID"`
 	DailyTasks         []DailyTask `gorm:"foreignKey:JournalEntryID"`
 }

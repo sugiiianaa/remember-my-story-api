@@ -36,6 +36,14 @@ func main() {
 
 func configureEnvironment() string {
 	if err := godotenv.Load(); err != nil {
+		_, err := os.Stat(".env")
+		if os.IsNotExist(err) {
+			log.Println(".env file does not exist!")
+		} else if err != nil {
+			log.Println("Error accessing .env:", err)
+		} else {
+			log.Println(".env file found")
+		}
 		log.Fatal("Error loading .env file")
 	}
 
@@ -86,10 +94,22 @@ func initDatabase(logger *logrus.Logger) *gorm.DB {
 // Router/Server functions
 // --------------------------
 func setupRouter(logger *logrus.Logger, env string, db *gorm.DB) *gin.Engine {
-	// Initialize layers
+	// jwt setup
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		logger.Fatal("JWT_SECRET environment variable not set")
+	}
+	authMiddleware := middleware.AuthMiddleware(jwtSecret)
+
+	// journal setup
 	journalRepo := repositories.NewJournalRepository(db)
 	journalService := services.NewJournalService(journalRepo)
 	journalHandler := handlers.NewJournalHandler(journalService)
+
+	// auth setup
+	userRepo := repositories.NewUserRepository(db)
+	authService := services.NewAuthService(*userRepo, jwtSecret)
+	authHandler := handlers.NewAuthHandler(*authService)
 
 	router := gin.New()
 
@@ -98,14 +118,25 @@ func setupRouter(logger *logrus.Logger, env string, db *gorm.DB) *gin.Engine {
 		middleware.LoggingMiddleware(logger, env),
 	)
 
-	registerRoutes(router, journalHandler)
+	registerRoutes(router, journalHandler, authHandler, authMiddleware)
 	return router
 }
 
-func registerRoutes(router *gin.Engine, handler *handlers.JournalHandler) {
+func registerRoutes(
+	router *gin.Engine,
+	handler *handlers.JournalHandler,
+	authHandler *handlers.AuthHandler,
+	authMiddleware gin.HandlerFunc) {
 	api := router.Group("api/v1")
 	{
+		auth := api.Group("/auth")
+		{
+			auth.POST("/register", authHandler.Register)
+			auth.POST("/login", authHandler.Login)
+		}
+
 		journals := api.Group("/journals")
+		journals.Use(authMiddleware)
 		{
 			journals.POST("", handler.CreateEntry)
 			journals.GET("/:id", handler.GetEntry)

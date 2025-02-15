@@ -22,6 +22,7 @@ func NewPostgresConnection(host, user, password, dbname, port string) (*gorm.DB,
 		&models.JournalEntry{},
 		&models.DailyTask{},
 		&models.DailySubTask{},
+		&models.User{},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to auto migrate: %w", err)

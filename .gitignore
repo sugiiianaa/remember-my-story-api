@@ -9,3 +9,6 @@ go.sum
 
 # Log files
 /logs/
+
+# Build
+*.exe
