@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/natefinch/lumberjack"
 	"github.com/sirupsen/logrus"
 )
 
@@ -121,22 +123,76 @@ func sanitizePath(path interface{}) string {
 
 var uuidRegEx = regexp.MustCompile(`[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}`)
 
+type FileLogHook struct {
+	fileLogger *logrus.Logger
+}
+
+func (h *FileLogHook) Levels() []logrus.Level {
+	return []logrus.Level{
+		logrus.InfoLevel,
+		logrus.WarnLevel,
+		logrus.ErrorLevel,
+		logrus.FatalLevel,
+		logrus.PanicLevel,
+	}
+}
+
+func (h *FileLogHook) Fire(entry *logrus.Entry) error {
+	h.fileLogger.WithFields(entry.Data).Log(entry.Level, entry.Message)
+	return nil
+}
+
 func Logger(env string) *logrus.Logger {
 	log := logrus.New()
+
+	// Set formatter based on environment
+	if env == "debug" {
+		log.SetFormatter(&CustomFormatter{
+			TextFormatter: logrus.TextFormatter{
+				ForceColors:      true,
+				DisableTimestamp: false,
+				FullTimestamp:    true,
+			},
+			env: env,
+		})
+	} else {
+		log.SetFormatter(&CustomFormatter{
+			TextFormatter: logrus.TextFormatter{
+				DisableTimestamp: false,
+				FullTimestamp:    true,
+			},
+			env: env,
+		})
+	}
+
+	// Console output (for development)
 	log.SetOutput(os.Stdout)
 
-	log.SetFormatter(&CustomFormatter{
-		TextFormatter: logrus.TextFormatter{
-			DisableTimestamp: true,
-			ForceColors:      env == "debug",
-		},
-		env: env,
-	})
+	// File output (for production)
+	if env == "release" || env == "debug" {
+		logDir := "logs"
+		if err := os.MkdirAll(logDir, 0755); err != nil {
+			log.Fatalf("Failed to create log directory: %v", err)
+		}
 
+		fileLogger := logrus.New()
+		fileLogger.SetOutput(&lumberjack.Logger{
+			Filename:   filepath.Join(logDir, fmt.Sprintf("app-%s.log", time.Now().Format("2006-01-02"))),
+			MaxSize:    100,  // MB
+			MaxBackups: 3,    // Number of old logs to keep
+			MaxAge:     30,   // Days
+			Compress:   true, // Compress old logs
+		})
+
+		// Add hook to filter logs
+		log.AddHook(&FileLogHook{fileLogger: fileLogger})
+	}
+
+	// Set log level
 	if env == "debug" {
 		log.SetLevel(logrus.DebugLevel)
 	} else {
-		log.SetLevel(logrus.InfoLevel)
+		log.SetLevel(logrus.InfoLevel) // Only store INFO and above in production
 	}
 
 	return log
