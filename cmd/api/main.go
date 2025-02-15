@@ -2,28 +2,52 @@ package main
 
 import (
 	"context"
+	"io"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"github.com/sirupsen/logrus"
 	repositories "github.com/sugiiianaa/remember-my-story/internal/Repositories"
 	"github.com/sugiiianaa/remember-my-story/internal/database"
 	"github.com/sugiiianaa/remember-my-story/internal/handlers"
-	"github.com/sugiiianaa/remember-my-story/internal/logger"
 	"github.com/sugiiianaa/remember-my-story/internal/middleware"
 	"github.com/sugiiianaa/remember-my-story/internal/services"
 )
 
 func main() {
-	err := godotenv.Load()
-	if err != nil {
+	// Load environment variables
+	if err := godotenv.Load(); err != nil {
 		log.Fatal("Error loading .env file")
 	}
+
+	// Configure environment
+	env := strings.ToLower(strings.Trim(os.Getenv("SERVER_ENV"), "\" "))
+	if env != "release" {
+		env = "debug"
+		gin.SetMode(gin.DebugMode)
+	} else {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
+	// Initialize logger
+	logger := middleware.Logger(env)
+
+	// Completely disable Gin's default logging
+	gin.DefaultWriter = io.Discard
+	gin.DisableConsoleColor()
+
+	// Log startup configuration
+	logger.WithFields(logrus.Fields{
+		"env":  env,
+		"port": os.Getenv("APP_PORT"),
+	}).Info("Starting server in ", strings.ToUpper(env), " mode")
 
 	// Initialize database
 	db, err := database.NewPostgresConnection(
@@ -34,25 +58,21 @@ func main() {
 		os.Getenv("DB_PORT"),
 	)
 	if err != nil {
-		log.Fatal("Failed to connect database: ", err)
+		logger.Fatal("Failed to connect to database: ", err)
 	}
 
-	// Initialize layers
+	// Initialize application layers
 	journalRepo := repositories.NewJournalRepository(db)
 	journalService := services.NewJournalService(journalRepo)
 	journalHandler := handlers.NewJournalHandler(journalService)
 
-	log := logger.NewLogger()
-
-	// Create Gin router
+	// Configure router
 	router := gin.New()
 
-	// Add middlewares
+	// Middlewares
 	router.Use(
-		gin.Recovery(),                         // Basic recovery
-		middleware.RecoveryMiddleware(log),     // Custom recovery
-		middleware.LoggingMiddleware(log),      // Structured logging
-		middleware.ErrorHandlerMiddleware(log), // Error handling
+		middleware.RequestIDMiddleware(),
+		middleware.LoggingMiddleware(logger, env),
 	)
 
 	// Routes
@@ -66,27 +86,36 @@ func main() {
 		}
 	}
 
-	// Start server
+	// Configure server
+	port := os.Getenv("APP_PORT")
+	if port == "" {
+		port = "8080"
+	}
+
 	srv := &http.Server{
-		Addr:    ":8080",
+		Addr:    ":" + port,
 		Handler: router,
 	}
 
+	// Graceful shutdown setup
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			panic("failed to start server: " + err.Error())
+			logger.Fatal("Failed to start server: ", err)
 		}
 	}()
 
-	// Graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
+
+	logger.Info("Shutting down server...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		panic("server forced to shutdown: " + err.Error())
+		logger.Fatal("Server forced to shutdown: ", err)
 	}
+
+	logger.Info("Server exited properly")
 }
