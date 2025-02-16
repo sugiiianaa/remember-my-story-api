@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	repositories "github.com/sugiiianaa/remember-my-story/internal/Repositories"
 	"github.com/sugiiianaa/remember-my-story/internal/models"
+	"github.com/sugiiianaa/remember-my-story/internal/models/enums"
 	"github.com/sugiiianaa/remember-my-story/internal/services"
 )
 
@@ -23,6 +24,26 @@ func (h *JournalHandler) CreateEntry(c *gin.Context) {
 	var entry models.JournalEntry
 	if err := c.ShouldBindJSON(&entry); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Validate mood
+	if entry.Mood == enums.Mood.Unknown {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid mood value"})
+		return
+	}
+
+	// Get userID from context
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	if uid, ok := userID.(uint); ok {
+		entry.UserID = uid
+	} else {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
 		return
 	}
 
