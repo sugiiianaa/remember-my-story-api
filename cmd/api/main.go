@@ -19,37 +19,62 @@ import (
 	"github.com/sugiiianaa/remember-my-story/internal/handlers"
 	"github.com/sugiiianaa/remember-my-story/internal/middleware"
 	"github.com/sugiiianaa/remember-my-story/internal/services"
+	"gorm.io/gorm"
 )
 
 func main() {
-	// Load environment variables
+	env := configureEnvironment()
+	logger := setupLogger(env)
+	db := initDatabase(logger)
+	router := setupRouter(logger, env, db)
+	startServer(router, logger)
+}
+
+// --------------------------
+// Configuration functions
+// --------------------------
+
+func configureEnvironment() string {
 	if err := godotenv.Load(); err != nil {
+		_, err := os.Stat(".env")
+		if os.IsNotExist(err) {
+			log.Println(".env file does not exist!")
+		} else if err != nil {
+			log.Println("Error accessing .env:", err)
+		} else {
+			log.Println(".env file found")
+		}
 		log.Fatal("Error loading .env file")
 	}
 
-	// Configure environment
 	env := strings.ToLower(strings.Trim(os.Getenv("SERVER_ENV"), "\" "))
-	if env != "release" {
+
+	if env == "release" {
+		gin.SetMode(gin.ReleaseMode)
+	} else {
 		env = "debug"
 		gin.SetMode(gin.DebugMode)
-	} else {
-		gin.SetMode(gin.ReleaseMode)
 	}
 
-	// Initialize logger
+	return env
+}
+
+func setupLogger(env string) *logrus.Logger {
 	logger := middleware.Logger(env)
 
-	// Completely disable Gin's default logging
+	// Group all gin logging configurations
 	gin.DefaultWriter = io.Discard
 	gin.DisableConsoleColor()
 
-	// Log startup configuration
 	logger.WithFields(logrus.Fields{
 		"env":  env,
 		"port": os.Getenv("APP_PORT"),
 	}).Info("Starting server in ", strings.ToUpper(env), " mode")
 
-	// Initialize database
+	return logger
+}
+
+func initDatabase(logger *logrus.Logger) *gorm.DB {
 	db, err := database.NewPostgresConnection(
 		os.Getenv("DB_HOST"),
 		os.Getenv("DB_USER"),
@@ -57,49 +82,83 @@ func main() {
 		os.Getenv("DB_NAME"),
 		os.Getenv("DB_PORT"),
 	)
+
 	if err != nil {
-		logger.Fatal("Failed to connect to database: ", err)
+		logger.Fatal("Failed to connect to database", err)
 	}
 
-	// Initialize application layers
+	return db
+}
+
+// --------------------------
+// Router/Server functions
+// --------------------------
+func setupRouter(logger *logrus.Logger, env string, db *gorm.DB) *gin.Engine {
+	// jwt setup
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		logger.Fatal("JWT_SECRET environment variable not set")
+	}
+	authMiddleware := middleware.AuthMiddleware(jwtSecret)
+
+	// journal setup
 	journalRepo := repositories.NewJournalRepository(db)
 	journalService := services.NewJournalService(journalRepo)
 	journalHandler := handlers.NewJournalHandler(journalService)
 
-	// Configure router
+	// auth setup
+	userRepo := repositories.NewUserRepository(db)
+	authService := services.NewAuthService(*userRepo, jwtSecret)
+	authHandler := handlers.NewAuthHandler(*authService)
+
 	router := gin.New()
 
-	// Middlewares
 	router.Use(
 		middleware.RequestIDMiddleware(),
 		middleware.LoggingMiddleware(logger, env),
 	)
 
-	// Routes
-	api := router.Group("/api/v1")
+	registerRoutes(router, journalHandler, authHandler, authMiddleware)
+	return router
+}
+
+func registerRoutes(
+	router *gin.Engine,
+	handler *handlers.JournalHandler,
+	authHandler *handlers.AuthHandler,
+	authMiddleware gin.HandlerFunc) {
+	api := router.Group("api/v1")
 	{
-		journals := api.Group("/journals")
+		auth := api.Group("/auth")
 		{
-			journals.POST("", journalHandler.CreateEntry)
-			journals.GET("/:id", journalHandler.GetEntry)
-			journals.GET("", journalHandler.GetEntriesByDate)
+			auth.POST("/register", authHandler.Register)
+			auth.POST("/login", authHandler.Login)
+		}
+
+		journals := api.Group("/journals")
+		journals.Use(authMiddleware)
+		{
+			journals.POST("", handler.CreateEntry)
+			// journals.GET("/:id", handler.GetEntry)
+			journals.GET("", handler.GetAllEntries)
 		}
 	}
+}
 
-	// Configure server
+func startServer(router *gin.Engine, logger *logrus.Logger) {
 	port := os.Getenv("APP_PORT")
 	if port == "" {
 		port = "8080"
 	}
 
-	srv := &http.Server{
+	server := &http.Server{
 		Addr:    ":" + port,
 		Handler: router,
 	}
 
 	// Graceful shutdown setup
 	go func() {
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Fatal("Failed to start server: ", err)
 		}
 	}()
@@ -113,7 +172,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := srv.Shutdown(ctx); err != nil {
+	if err := server.Shutdown(ctx); err != nil {
 		logger.Fatal("Server forced to shutdown: ", err)
 	}
 

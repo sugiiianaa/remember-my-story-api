@@ -8,7 +8,9 @@ import (
 	"github.com/gin-gonic/gin"
 	repositories "github.com/sugiiianaa/remember-my-story/internal/Repositories"
 	"github.com/sugiiianaa/remember-my-story/internal/models"
+	"github.com/sugiiianaa/remember-my-story/internal/models/enums"
 	"github.com/sugiiianaa/remember-my-story/internal/services"
+	"github.com/sugiiianaa/remember-my-story/pkg/helpers"
 )
 
 type JournalHandler struct {
@@ -25,6 +27,19 @@ func (h *JournalHandler) CreateEntry(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	// Validate mood
+	if entry.Mood == enums.Mood.Unknown {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid mood value"})
+		return
+	}
+
+	userID, err := helpers.GetUserIDFromContext(c)
+	if err != nil {
+		return
+	}
+
+	entry.UserID = userID
 
 	if err := h.service.CreateEntry(c.Request.Context(), &entry); err != nil {
 		if _, ok := err.(services.ValidationError); ok {
@@ -72,6 +87,22 @@ func (h *JournalHandler) GetEntriesByDate(c *gin.Context) {
 	}
 
 	entries, err := h.service.GetEntriesByDate(c.Request.Context(), date)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get entries"})
+		return
+	}
+
+	c.JSON(http.StatusOK, entries)
+}
+
+func (h *JournalHandler) GetAllEntries(c *gin.Context) {
+	userID, err := helpers.GetUserIDFromContext(c)
+	if err != nil {
+		return
+	}
+
+	entries, err := h.service.GetAllEntries(c.Request.Context(), userID)
+
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get entries"})
 		return
