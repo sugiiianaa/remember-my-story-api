@@ -4,9 +4,10 @@ import "gorm.io/gorm"
 
 type User struct {
 	gorm.Model
-	Email    string `gorm:"index"`
-	FullName string
-	Password string
+	Email    string         `gorm:"not null; unique; index"`
+	FullName string         `gorm:"not null"`
+	Password string         `gorm:"not null"`
+	Journals []JournalEntry `gorm:"foreignKey:UserID"`
 }
 
 // --------------------------

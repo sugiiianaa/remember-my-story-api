@@ -17,30 +17,10 @@ func NewPostgresConnection(host, user, password, dbname, port string) (*gorm.DB,
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	// Migrate the schema
-	err = db.AutoMigrate(
-		&models.JournalEntry{},
-		&models.DailyTask{},
-		&models.DailySubTask{},
-		&models.User{},
-	)
+	// Migrate all models
+	err = db.AutoMigrate(models.AllModels...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to auto migrate: %w", err)
-	}
-
-	// Add foreign key constraints if they don't exist
-	if !db.Migrator().HasConstraint(&models.DailyTask{}, "JournalEntry") {
-		err = db.Migrator().CreateConstraint(&models.DailyTask{}, "JournalEntry")
-		if err != nil {
-			return nil, fmt.Errorf("failed to create JournalEntry constraint: %w", err)
-		}
-	}
-
-	if !db.Migrator().HasConstraint(&models.DailySubTask{}, "DailyTask") {
-		err = db.Migrator().CreateConstraint(&models.DailySubTask{}, "DailyTask")
-		if err != nil {
-			return nil, fmt.Errorf("failed to create DailyTask constraint: %w", err)
-		}
 	}
 
 	return db, nil

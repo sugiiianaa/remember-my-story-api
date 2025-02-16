@@ -13,6 +13,7 @@ type JournalService interface {
 	GetEntry(ctx context.Context, id uint) (*models.JournalEntry, error)
 	UpdateEntry(ctx context.Context, entry *models.JournalEntry) error
 	GetEntriesByDate(ctx context.Context, date time.Time) ([]models.JournalEntry, error)
+	GetAllEntries(ctx context.Context, userID uint) ([]models.JournalEntry, error)
 }
 
 type journalService struct {
@@ -53,6 +54,10 @@ func (s *journalService) UpdateEntry(ctx context.Context, entry *models.JournalE
 
 func (s *journalService) GetEntriesByDate(ctx context.Context, date time.Time) ([]models.JournalEntry, error) {
 	return s.repo.FindByDate(ctx, date)
+}
+
+func (s *journalService) GetAllEntries(ctx context.Context, userID uint) ([]models.JournalEntry, error) {
+	return s.repo.FindAll(ctx, userID)
 }
 
 type ValidationError struct {

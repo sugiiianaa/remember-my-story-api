@@ -9,10 +9,10 @@ import (
 
 type JournalEntry struct {
 	gorm.Model
-	Date               time.Time `gorm:"index"`
-	Mood               enums.MoodType
-	ThisDayDescription string
-	DailyReflection    string
-	UserID             uint        `gorm:"foreignKey:UserID" json:"-"`
-	DailyTasks         []DailyTask `gorm:"foreignKey:JournalEntryID"`
+	Date               time.Time      `gorm:"not null; index"`
+	Mood               enums.MoodType `gorm:"not null; index"`
+	ThisDayDescription string         `gorm:"not null"`
+	DailyReflection    string         `gorm:"not null"`
+	UserID             uint           `gorm:"not null; index"`
+	DailyTasks         []DailyTask    `gorm:"foreignKey:JournalEntryID"`
 }

@@ -14,6 +14,7 @@ type JournalRepository interface {
 	FindByID(ctx context.Context, id uint) (*models.JournalEntry, error)
 	Update(ctx context.Context, entry *models.JournalEntry) error
 	FindByDate(ctx context.Context, date time.Time) ([]models.JournalEntry, error)
+	FindAll(ctx context.Context, userID uint) ([]models.JournalEntry, error)
 }
 
 type journalRepository struct {
@@ -50,6 +51,14 @@ func (r *journalRepository) FindByDate(ctx context.Context, date time.Time) ([]m
 	var entries []models.JournalEntry
 	err := r.db.WithContext(ctx).
 		Where("date = ?", date.Format("2006-01-02")).
+		Find(&entries).Error
+	return entries, err
+}
+
+func (r *journalRepository) FindAll(ctx context.Context, userID uint) ([]models.JournalEntry, error) {
+	var entries []models.JournalEntry
+	err := r.db.WithContext(ctx).
+		Where("user_id = ?", userID).
 		Find(&entries).Error
 	return entries, err
 }
