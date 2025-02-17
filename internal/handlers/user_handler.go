@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/sugiiianaa/remember-my-story/internal/models"
 	"github.com/sugiiianaa/remember-my-story/internal/services"
+	"github.com/sugiiianaa/remember-my-story/pkg/helpers"
 )
 
 type AuthHandler struct {
@@ -19,17 +20,27 @@ func NewAuthHandler(authService services.AuthService) *AuthHandler {
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req models.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, helpers.ErrorResponse(
+			http.StatusBadRequest,
+			"Failed to register user",
+			err.Error(),
+		))
 		return
 	}
 
-	err := h.authService.Register(req.Email, req.FullName, req.Password)
+	userID, err := h.authService.Register(req.Email, req.FullName, req.Password)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, helpers.ErrorResponse(
+			http.StatusBadRequest,
+			"Failed to register user",
+			err.Error(),
+		))
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"message": "User registered successfully"})
+	c.JSON(http.StatusCreated, helpers.SuccessResponse("User registered successfully", map[string]interface{}{
+		"user_id": userID, // Wrap the ID in a map/object
+	}))
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {

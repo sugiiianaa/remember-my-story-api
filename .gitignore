@@ -12,3 +12,4 @@ go.sum
 
 # Build
 *.exe
+/tmp
