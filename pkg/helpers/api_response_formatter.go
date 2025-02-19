@@ -1,6 +1,10 @@
 package helpers
 
-import "os"
+import (
+	"os"
+
+	"github.com/sugiiianaa/remember-my-story/internal/apperrors"
+)
 
 type ApiResponse struct {
 	Success bool        `json:"success"`           // Indicates if the request was successful
@@ -10,10 +14,10 @@ type ApiResponse struct {
 }
 
 type ApiError struct {
-	Code      int    `json:"code"`                 // Error code (e.g., HTTP status code)
-	Message   string `json:"message"`              // Error message for clients
-	Details   string `json:"details,omitempty"`    // Additional error details (for debugging)
-	RequestId string `json:"request_id,omitempty"` // Request id for production
+	ErrorCode string `json:"error_message,omitempty"` // Error code to determine which error are happen
+	Message   string `json:"message"`                 // Error message for clients
+	Details   string `json:"details,omitempty"`       // Additional error details (for debugging)
+	RequestId string `json:"request_id,omitempty"`    // Request id for production
 }
 
 // SuccessResponse returns a standardized success response
@@ -26,13 +30,13 @@ func SuccessResponse(message string, data interface{}) ApiResponse {
 }
 
 // ErrorResponse returns a standardized error response
-func ErrorResponse(code int, message string, details string) ApiResponse {
+func ErrorResponse(errCode apperrors.ErrorCode, details string) ApiResponse {
 
 	serverEnvironment := os.Getenv("SERVER_ENV")
 
 	apiError := ApiError{
-		Code:    code,
-		Message: message,
+		ErrorCode: errCode.Code,
+		Message:   errCode.Message,
 	}
 
 	if serverEnvironment == "debug" {

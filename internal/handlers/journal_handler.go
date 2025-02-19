@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	repositories "github.com/sugiiianaa/remember-my-story/internal/Repositories"
+	"github.com/sugiiianaa/remember-my-story/internal/apperrors"
 	"github.com/sugiiianaa/remember-my-story/internal/models"
 	"github.com/sugiiianaa/remember-my-story/internal/models/enums"
 	"github.com/sugiiianaa/remember-my-story/internal/services"
@@ -21,10 +22,14 @@ func NewJournalHandler(service services.JournalService) *JournalHandler {
 	return &JournalHandler{service: service}
 }
 
+// TODO SUGI : standarize all the error messages
 func (h *JournalHandler) CreateEntry(c *gin.Context) {
 	var entry models.JournalEntry
 	if err := c.ShouldBindJSON(&entry); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, helpers.ErrorResponse(
+			apperrors.InvalidRequestData,
+			err.Error(),
+		))
 		return
 	}
 
