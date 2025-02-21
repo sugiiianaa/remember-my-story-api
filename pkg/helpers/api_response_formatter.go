@@ -7,24 +7,22 @@ import (
 )
 
 type ApiResponse struct {
-	Success bool        `json:"success"`           // Indicates if the request was successful
-	Message string      `json:"message,omitempty"` // Optional message for additional context
-	Data    interface{} `json:"data,omitempty"`    // The actual response data
-	Error   *ApiError   `json:"error,omitempty"`   // Error details (if any)
+	Success bool        `json:"success"`         // Indicates if the request was successful
+	Data    interface{} `json:"data,omitempty"`  // The actual response data
+	Error   *ApiError   `json:"error,omitempty"` // Error details (if any)
 }
 
 type ApiError struct {
-	ErrorCode string `json:"error_message,omitempty"` // Error code to determine which error are happen
-	Message   string `json:"message"`                 // Error message for clients
-	Details   string `json:"details,omitempty"`       // Additional error details (for debugging)
-	RequestId string `json:"request_id,omitempty"`    // Request id for production
+	ErrorCode string `json:"error_code,omitempty"` // Error code to determine which error are happen
+	Message   string `json:"message"`              // Error message for clients
+	Details   string `json:"details,omitempty"`    // Additional error details (for debugging)
+	RequestId string `json:"request_id,omitempty"` // Request id for production
 }
 
 // SuccessResponse returns a standardized success response
-func SuccessResponse(message string, data interface{}) ApiResponse {
+func SuccessResponse(data interface{}) ApiResponse {
 	return ApiResponse{
 		Success: true,
-		Message: message,
 		Data:    data,
 	}
 }

@@ -37,7 +37,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, helpers.SuccessResponse("User registered successfully", map[string]interface{}{
+	c.JSON(http.StatusCreated, helpers.SuccessResponse(map[string]interface{}{
 		"user_id": userID,
 	}))
 }
@@ -62,5 +62,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"token": token})
+	c.JSON(http.StatusOK, helpers.SuccessResponse(map[string]interface{}{
+		"token": token,
+	}))
 }

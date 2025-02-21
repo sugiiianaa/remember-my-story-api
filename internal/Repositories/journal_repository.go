@@ -1,66 +1,36 @@
 package repositories
 
 import (
-	"context"
 	"errors"
-	"time"
 
 	"github.com/sugiiianaa/remember-my-story/internal/models"
 	"gorm.io/gorm"
 )
 
-type JournalRepository interface {
-	Create(ctx context.Context, entry *models.JournalEntry) error
-	FindByID(ctx context.Context, id uint) (*models.JournalEntry, error)
-	Update(ctx context.Context, entry *models.JournalEntry) error
-	FindByDate(ctx context.Context, date time.Time) ([]models.JournalEntry, error)
-	FindAll(ctx context.Context, userID uint) ([]models.JournalEntry, error)
-}
-
-type journalRepository struct {
+type JournalRepository struct {
 	db *gorm.DB
 }
 
-func NewJournalRepository(db *gorm.DB) JournalRepository {
-	return &journalRepository{db: db}
+func NewJournalRepository(db *gorm.DB) *JournalRepository {
+	return &JournalRepository{db}
 }
 
-func (r *journalRepository) Create(ctx context.Context, entry *models.JournalEntry) error {
-	return r.db.WithContext(ctx).Create(entry).Error
+func (r *JournalRepository) Create(entry *models.JournalEntry) (uint, error) {
+	if err := r.db.Create(entry).Error; err != nil {
+		return 0, err
+	}
+	return entry.ID, nil
 }
 
-func (r *journalRepository) FindByID(ctx context.Context, id uint) (*models.JournalEntry, error) {
+func (r *JournalRepository) FindByID(id uint) (*models.JournalEntry, error) {
 	var entry models.JournalEntry
 	err := r.db.
-		WithContext(ctx).
 		Preload("DailyTasks.SubRTasks").
 		First(&entry, id).Error
 
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, ErrNotFound
+		return nil, errors.New("record not found")
 	}
 
 	return &entry, err
 }
-
-func (r *journalRepository) Update(ctx context.Context, entry *models.JournalEntry) error {
-	return r.db.WithContext(ctx).Session(&gorm.Session{FullSaveAssociations: true}).Save(entry).Error
-}
-
-func (r *journalRepository) FindByDate(ctx context.Context, date time.Time) ([]models.JournalEntry, error) {
-	var entries []models.JournalEntry
-	err := r.db.WithContext(ctx).
-		Where("date = ?", date.Format("2006-01-02")).
-		Find(&entries).Error
-	return entries, err
-}
-
-func (r *journalRepository) FindAll(ctx context.Context, userID uint) ([]models.JournalEntry, error) {
-	var entries []models.JournalEntry
-	err := r.db.WithContext(ctx).
-		Where("user_id = ?", userID).
-		Find(&entries).Error
-	return entries, err
-}
-
-var ErrNotFound = errors.New("record not found")
