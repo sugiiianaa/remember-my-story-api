@@ -22,15 +22,28 @@ func (r *JournalRepository) Create(entry *models.JournalEntry) (uint, error) {
 	return entry.ID, nil
 }
 
-func (r *JournalRepository) FindByID(id uint) (*models.JournalEntry, error) {
+func (r *JournalRepository) FindByID(journalID uint, userID uint) (*models.JournalEntry, error) {
 	var entry models.JournalEntry
 	err := r.db.
-		Preload("DailyTasks.SubRTasks").
-		First(&entry, id).Error
+		Preload("DailyTasks.SubTasks").
+		Where("id = ? AND user_id = ?", journalID, userID).
+		First(&entry).Error
 
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, errors.New("record not found")
+		return nil, errors.New("journal entry not found")
 	}
 
-	return &entry, err
+	if err != nil {
+		return nil, err
+	}
+
+	return &entry, nil
+}
+
+func (r *JournalRepository) UpdateEntry(journalID uint, updateData map[string]interface{}) error {
+	err := r.db.Model(&models.JournalEntry{}).
+		Where("id = ?", journalID).
+		Updates(updateData).Error
+
+	return err
 }

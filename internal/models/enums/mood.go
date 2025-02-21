@@ -53,11 +53,11 @@ func (m *MoodType) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	*m = moodFromString(s)
+	*m = MoodFromString(s)
 	return nil
 }
 
-func moodFromString(s string) MoodType {
+func MoodFromString(s string) MoodType {
 	switch strings.ToLower(s) {
 	case "happy":
 		return Mood.Happy

@@ -143,6 +143,7 @@ func registerRoutes(
 		journals.Use(authMiddleware)
 		{
 			journals.POST("", handler.CreateEntry)
+			journals.PATCH("/:id", handler.UpdateEntry)
 			// journals.GET("/:id", handler.GetEntry)
 		}
 	}

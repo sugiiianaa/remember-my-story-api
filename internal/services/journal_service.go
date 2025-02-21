@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"time"
 
 	repositories "github.com/sugiiianaa/remember-my-story/internal/Repositories"
@@ -24,6 +23,18 @@ func (s *JournalService) CreateEntry(entry *models.JournalEntry) (uint, error) {
 	return s.journalRepo.Create(entry)
 }
 
-func (s *JournalService) GetEntry(ctx context.Context, id uint) (*models.JournalEntry, error) {
-	return s.journalRepo.FindByID(id)
+func (s *JournalService) UpdateEntry(journalID uint, userID uint, updateData map[string]interface{}) error {
+	// Check if entry exists and belongs to the user
+	existingEntry, err := s.journalRepo.FindByID(journalID, userID)
+	if err != nil {
+		return err
+	}
+
+	// Update the entry using the repository
+	err = s.journalRepo.UpdateEntry(existingEntry.ID, updateData)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
