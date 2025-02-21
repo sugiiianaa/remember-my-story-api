@@ -23,15 +23,15 @@ func NewAuthService(userRepo repositories.UserRepository, jwtSecret string) *Aut
 	}
 }
 
-func (s *AuthService) Register(email, fullName, password string) error {
+func (s *AuthService) Register(email, fullName, password string) (uint, error) {
 	_, err := s.userRepo.FindByEmail(email)
 	if err != nil {
-		return errors.New("user already exists")
+		return 0, errors.New("user already exists")
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	user := &models.User{

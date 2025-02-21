@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -24,7 +23,14 @@ import (
 
 func main() {
 	env := configureEnvironment()
-	logger := setupLogger(env)
+	logger := initLogger(env)
+
+	// Log the environment and log level
+	logger.WithFields(logrus.Fields{
+		"environment": env,
+		"logLevel":    logger.GetLevel().String(),
+	}).Info("Starting application with the following settings")
+
 	db := initDatabase(logger)
 	router := setupRouter(logger, env, db)
 	startServer(router, logger)
@@ -59,17 +65,16 @@ func configureEnvironment() string {
 	return env
 }
 
-func setupLogger(env string) *logrus.Logger {
-	logger := middleware.Logger(env)
+func initLogger(env string) *logrus.Logger {
+	logger := logrus.New()
+	logger.SetFormatter(&logrus.JSONFormatter{})
 
-	// Group all gin logging configurations
-	gin.DefaultWriter = io.Discard
-	gin.DisableConsoleColor()
-
-	logger.WithFields(logrus.Fields{
-		"env":  env,
-		"port": os.Getenv("APP_PORT"),
-	}).Info("Starting server in ", strings.ToUpper(env), " mode")
+	// Set log level based on environment
+	if env == "debug" {
+		logger.SetLevel(logrus.DebugLevel)
+	} else {
+		logger.SetLevel(logrus.InfoLevel)
+	}
 
 	return logger
 }
@@ -114,7 +119,6 @@ func setupRouter(logger *logrus.Logger, env string, db *gorm.DB) *gin.Engine {
 	router := gin.New()
 
 	router.Use(
-		middleware.RequestIDMiddleware(),
 		middleware.LoggingMiddleware(logger, env),
 	)
 
@@ -140,7 +144,6 @@ func registerRoutes(
 		{
 			journals.POST("", handler.CreateEntry)
 			// journals.GET("/:id", handler.GetEntry)
-			journals.GET("", handler.GetAllEntries)
 		}
 	}
 }

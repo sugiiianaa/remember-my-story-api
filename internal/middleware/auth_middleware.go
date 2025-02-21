@@ -7,19 +7,27 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/sugiiianaa/remember-my-story/internal/apperrors"
+	"github.com/sugiiianaa/remember-my-story/pkg/helpers"
 )
 
 func AuthMiddleware(jwtSecret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header required"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, helpers.ErrorResponse(
+				apperrors.Unauthorized,
+				"Valid authorization header required",
+			))
 			return
 		}
 
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 		if tokenString == authHeader {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header required"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, helpers.ErrorResponse(
+				apperrors.Unauthorized,
+				"Valid authorization header required",
+			))
 			return
 		}
 
@@ -31,27 +39,39 @@ func AuthMiddleware(jwtSecret string) gin.HandlerFunc {
 		})
 
 		if err != nil || !token.Valid {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, helpers.ErrorResponse(
+				apperrors.Unauthorized,
+				"Invalid token",
+			))
 			return
 		}
 
 		claims, ok := token.Claims.(jwt.MapClaims)
 
 		if !ok {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Inavlid tokem claims"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, helpers.ErrorResponse(
+				apperrors.Unauthorized,
+				"Invalid token",
+			))
 			return
 		}
 
 		sub, err := claims.GetSubject()
 
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Inavlid subject in token"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, helpers.ErrorResponse(
+				apperrors.Unauthorized,
+				"Invalid token",
+			))
 			return
 		}
 
 		userID, err := strconv.ParseUint(sub, 10, 64)
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Inavlid User ID format"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, helpers.ErrorResponse(
+				apperrors.Unauthorized,
+				"Invalid token",
+			))
 			return
 		}
 
