@@ -2,9 +2,7 @@ package handlers
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -23,83 +21,50 @@ type JournalHandler struct {
 func NewJournalHandler(service *services.JournalService) *JournalHandler {
 	return &JournalHandler{service: service}
 }
-
 func (h *JournalHandler) CreateEntry(c *gin.Context) {
 	var entry models.JournalEntry
 	if err := c.ShouldBindJSON(&entry); err != nil {
-		c.JSON(http.StatusBadRequest, helpers.ErrorResponse(
-			apperrors.InvalidRequestData,
-			err.Error(),
-		))
+		helpers.RespondWithError(c, http.StatusBadRequest, apperrors.InvalidRequestData, err.Error())
 		return
 	}
 
-	// Validate mood
-	if entry.Mood == enums.Mood.Unknown {
-		c.JSON(http.StatusBadRequest, helpers.ErrorResponse(
-			apperrors.InvalidRequestData,
-			fmt.Sprintf("%s is invalid mood.", entry.Mood),
-		))
+	if err := helpers.ValidateMood(entry.Mood.String()); err != nil {
+		helpers.RespondWithError(c, http.StatusBadRequest, apperrors.InvalidRequestData, err.Error())
+		return
 	}
 
 	userID, err := helpers.GetUserIDFromContext(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, helpers.ErrorResponse(
-			apperrors.Unauthorized,
-			err.Error(),
-		))
+		helpers.RespondWithError(c, http.StatusUnauthorized, apperrors.Unauthorized, err.Error())
+		return
 	}
 
 	entry.UserID = userID
 
 	journalID, err := h.service.CreateEntry(&entry)
-
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, helpers.ErrorResponse(
-			apperrors.InternalServerError,
-			err.Error(),
-		))
+		helpers.HandleInternalError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusCreated, helpers.SuccessResponse(map[string]interface{}{
+	helpers.RespondWithSuccess(c, http.StatusCreated, map[string]interface{}{
 		"journal_id": journalID,
-	}))
+	})
 }
 
 func (h *JournalHandler) UpdateEntry(c *gin.Context) {
-	// Get journal entry ID from URL
-	journalIDParam := c.Param("id")
-	fmt.Printf("journalIDParam: %s\n", journalIDParam)
-	if journalIDParam == "" {
-		c.JSON(http.StatusBadRequest, helpers.ErrorResponse(
-			apperrors.InvalidRequestData,
-			"Missing journal ID",
-		))
-		return
-	}
-
-	// Convert ID to uint
-	journalID, err := strconv.ParseUint(journalIDParam, 10, 32)
+	journalID, err := helpers.GetUintParam(c, "id")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, helpers.ErrorResponse(
-			apperrors.InvalidRequestData,
-			"Invalid journal ID",
-		))
+		helpers.RespondWithError(c, http.StatusBadRequest, apperrors.InvalidRequestData, err.Error())
 		return
 	}
 
-	// Get user ID from context
 	userID, err := helpers.GetUserIDFromContext(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, helpers.ErrorResponse(
-			apperrors.Unauthorized,
-			err.Error(),
-		))
+		helpers.RespondWithError(c, http.StatusUnauthorized, apperrors.Unauthorized, err.Error())
 		return
 	}
 
-	// Define a struct for expected update fields with pointers to check presence
 	var updateData struct {
 		Mood               *string    `json:"mood,omitempty"`
 		Date               *time.Time `json:"date,omitempty"`
@@ -108,30 +73,20 @@ func (h *JournalHandler) UpdateEntry(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&updateData); err != nil {
-		c.JSON(http.StatusBadRequest, helpers.ErrorResponse(
-			apperrors.InvalidRequestData,
-			err.Error(),
-		))
+		helpers.RespondWithError(c, http.StatusBadRequest, apperrors.InvalidRequestData, err.Error())
 		return
-
 	}
-	// Convert the struct to a map for the service layer
+
 	updateFields := make(map[string]interface{})
 
-	// Handle Mood field separately to convert string to MoodType
 	if updateData.Mood != nil {
-		mood := enums.MoodFromString(*updateData.Mood)
-		if mood == enums.Mood.Unknown {
-			c.JSON(http.StatusBadRequest, helpers.ErrorResponse(
-				apperrors.InvalidRequestData,
-				fmt.Sprintf("%s is an invalid mood.", *updateData.Mood),
-			))
+		if err := helpers.ValidateMood(*updateData.Mood); err != nil {
+			helpers.RespondWithError(c, http.StatusBadRequest, apperrors.InvalidRequestData, err.Error())
 			return
 		}
-		updateFields["mood"] = mood
+		updateFields["mood"] = enums.MoodFromString(*updateData.Mood)
 	}
 
-	// Add other fields to the map if they are provided
 	if updateData.Date != nil {
 		updateFields["date"] = *updateData.Date
 	}
@@ -142,26 +97,57 @@ func (h *JournalHandler) UpdateEntry(c *gin.Context) {
 		updateFields["daily_reflection"] = *updateData.DailyReflection
 	}
 
-	// Call service layer to handle update logic
-	err = h.service.UpdateEntry(uint(journalID), userID, updateFields)
+	err = h.service.UpdateEntry(journalID, userID, updateFields)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusNotFound, helpers.ErrorResponse(
-				apperrors.NotFound,
-				"Journal entry not found",
-			))
+			helpers.RespondWithError(c, http.StatusNotFound, apperrors.NotFound, "Journal entry not found")
 			return
 		}
-
-		c.JSON(http.StatusInternalServerError, helpers.ErrorResponse(
-			apperrors.InternalServerError,
-			err.Error(),
-		))
+		helpers.HandleInternalError(c, err)
 		return
 	}
 
-	// Success response
-	c.JSON(http.StatusOK, helpers.SuccessResponse(map[string]interface{}{
+	helpers.RespondWithSuccess(c, http.StatusOK, map[string]interface{}{
 		"message": "Journal entry updated successfully",
-	}))
+	})
+}
+
+func (h *JournalHandler) GetAllEntry(c *gin.Context) {
+	userID, err := helpers.GetUserIDFromContext(c)
+	if err != nil {
+		helpers.RespondWithError(c, http.StatusUnauthorized, apperrors.Unauthorized, err.Error())
+		return
+	}
+
+	entries, err := h.service.GetAllEntry(userID)
+	if err != nil {
+		helpers.HandleInternalError(c, err)
+		return
+	}
+
+	helpers.RespondWithSuccess(c, http.StatusOK, entries)
+}
+
+func (h *JournalHandler) DeleteEntry(c *gin.Context) {
+	journalID, err := helpers.GetUintParam(c, "id")
+	if err != nil {
+		helpers.RespondWithError(c, http.StatusBadRequest, apperrors.InvalidRequestData, err.Error())
+		return
+	}
+
+	userID, err := helpers.GetUserIDFromContext(c)
+	if err != nil {
+		helpers.RespondWithError(c, http.StatusUnauthorized, apperrors.Unauthorized, err.Error())
+		return
+	}
+
+	err = h.service.DeleteEntry(journalID, userID)
+	if err != nil {
+		helpers.HandleError(c, err, apperrors.InvalidRequestData)
+		return
+	}
+
+	helpers.RespondWithSuccess(c, http.StatusOK, map[string]interface{}{
+		"journal_id": journalID,
+	})
 }

@@ -3,6 +3,7 @@ package helpers
 import (
 	"os"
 
+	"github.com/gin-gonic/gin"
 	"github.com/sugiiianaa/remember-my-story/internal/apperrors"
 )
 
@@ -45,4 +46,12 @@ func ErrorResponse(errCode apperrors.ErrorCode, details string) ApiResponse {
 		Success: false,
 		Error:   &apiError,
 	}
+}
+
+func RespondWithSuccess(c *gin.Context, statusCode int, data interface{}) {
+	c.JSON(statusCode, SuccessResponse(data))
+}
+
+func RespondWithError(c *gin.Context, statusCode int, errCode apperrors.ErrorCode, details string) {
+	c.JSON(statusCode, ErrorResponse(errCode, details))
 }

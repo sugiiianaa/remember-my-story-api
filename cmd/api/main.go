@@ -144,7 +144,7 @@ func registerRoutes(
 		{
 			journals.POST("", handler.CreateEntry)
 			journals.PATCH("/:id", handler.UpdateEntry)
-			// journals.GET("/:id", handler.GetEntry)
+			journals.GET("", handler.GetAllEntry)
 		}
 	}
 }

@@ -14,5 +14,5 @@ type JournalEntry struct {
 	ThisDayDescription string         `gorm:"not null"`
 	DailyReflection    string         `gorm:"not null"`
 	UserID             uint           `gorm:"not null; index"`
-	DailyTasks         []DailyTask    `gorm:"foreignKey:JournalEntryID"`
+	DailyTasks         []DailyTask    `gorm:"foreignKey:JournalEntryID;constraint:OnDelete:CASCADE;"`
 }

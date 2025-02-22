@@ -9,5 +9,5 @@ type DailyTask struct {
 	JournalEntryID uint `gorm:"index"` // Add index for better performance
 	Task           string
 	Status         bool
-	SubTasks       []DailySubTask `gorm:"foreignKey:DailyTaskID"`
+	SubTasks       []DailySubTask `gorm:"foreignKey:DailyTaskID;constraint:OnDelete:CASCADE;"`
 }
